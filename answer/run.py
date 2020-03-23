@@ -1,6 +1,9 @@
 import numpy as np
 import cv2
 import utils
+import requests  #통신
+import shutil
+import time
 
 FILE_NAME = "trained.npz"
 
@@ -19,7 +22,7 @@ def check(test, train, train_labels):
 
 def get_result(file_name):
     image = cv2.imread(file_name)
-    chars = utils.extract_chars(image)
+    chars = utils.extract_chars(image)  # 각 문자들 추출
     result_string = ""
 
     for char in chars:
@@ -39,4 +42,44 @@ def get_result(file_name):
 
     return result_string
 
-print(get_result("answer/2.png"))
+# print(get_result("answer/2.png"))
+
+
+
+host = "http://localhost:10000"
+url = '/start'
+
+with requests.Session() as s:
+    answer = ''
+
+    for i in range(0,100):
+        start_time = time.time()
+        params = {'ans': answer}
+
+        response = s.post(host + url, params)
+        print('Server Return: ' + response.text)
+        if i == 0:
+            returned = response.text
+            image_url = host + returned
+            url = '/check'
+        else:
+            returned = response.json()
+            image_url = host + returned['url']
+
+        print("Problem " + str(i) + " : " + image_url)
+
+        response = s.get(image_url, stream=True)
+        target_image = './answer/target_images/' + str(i) + '.png'
+        
+        with open(target_image, 'wb') as out_file:
+            shutil.copyfileobj(response.raw, out_file)
+        del response
+
+        answer_string = get_result(target_image)
+        print("String : " + answer_string)
+        answer_string = utils.remove_first_0(answer_string)
+        answer = str(eval(answer_string))
+        print("Answer : " + answer)
+        print("--- %s second ---" % (time.time() - start_time))
+        
+
